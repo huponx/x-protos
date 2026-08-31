@@ -11,5 +11,12 @@ else
   out_dir="$(pwd)"
 fi
 
+# buf generate does not delete stubs for removed .proto files.
+# Drop previous plugin output; keep go.mod / go.sum.
+if [ -d "${out_dir}/go" ]; then
+  find "${out_dir}/go" -name '*.pb.go' -delete
+  find "${out_dir}/go" -type d -empty -mindepth 1 -delete
+fi
+
 cd "${out_dir}"
 buf generate "${proto_dir}" --template "${proto_dir}/buf.gen.yaml"
