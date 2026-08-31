@@ -1,0 +1,68 @@
+name: Notify protogen
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      proto_ref:
+        description: Tag or SHA of this proto repo to generate
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    outputs:
+      proto_ref: ${{ steps.meta.outputs.proto_ref }}
+      target_repo: ${{ steps.meta.outputs.target_repo }}
+      dispatched: ${{ steps.dispatch.outputs.dispatched }}
+    steps:
+      - name: Resolve refs
+        id: meta
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.proto_ref }}" ]; then
+            ref="${{ inputs.proto_ref }}"
+          else
+            ref="${GITHUB_REF_NAME}"
+          fi
+          repo="${{ vars.PROTOGEN_REPO }}"
+          repo="${repo:-huponx/x-protogen}"
+          echo "proto_ref=${ref}" >> "${GITHUB_OUTPUT}"
+          echo "target_repo=${repo}" >> "${GITHUB_OUTPUT}"
+      - name: Dispatch protogen
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ secrets.PROTOGEN_DISPATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "PROTOGEN_DISPATCH_TOKEN is not set" >&2
+            echo "dispatched=false" >> "${GITHUB_OUTPUT}"
+            exit 1
+          fi
+          gh api "repos/${{ steps.meta.outputs.target_repo }}/dispatches" \
+            -f event_type=proto_release \
+            -F "client_payload[proto_ref]=${{ steps.meta.outputs.proto_ref }}" \
+            -F "client_payload[proto_sha]=${GITHUB_SHA}"
+          echo "dispatched=true" >> "${GITHUB_OUTPUT}"
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Notify protogen"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Result | ${{ job.status }} |"
+            echo "| proto_ref | \`${{ steps.meta.outputs.proto_ref }}\` |"
+            echo "| proto SHA | \`${GITHUB_SHA:0:7}\` |"
+            echo "| Target | \`${{ steps.meta.outputs.target_repo }}\` |"
+            echo "| Dispatched | ${{ steps.dispatch.outputs.dispatched || 'false' }} |"
+            echo "| Event | ${{ github.event_name }} |"
+          } >> "${GITHUB_STEP_SUMMARY}"

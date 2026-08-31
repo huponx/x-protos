@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package ping.v1;
+
+option go_package = "github.com/huponx/x-protogen/ping/v1;pingv1";
+
+service PingService {
+  rpc Ping(PingRequest) returns (PingResponse);
+}
+
+message PingRequest {}
+
+message PingResponse {
+  string correlation_id = 1;
+  string user_id = 2;
+}
