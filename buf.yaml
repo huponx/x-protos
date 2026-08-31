@@ -1,7 +1,11 @@
 version: v1
 lint:
   use:
-    - DEFAULT
+    - STANDARD
 breaking:
   use:
     - FILE
+  # Allow removing a .proto (stubs are deleted on generate). Field/RPC
+  # removals inside a remaining file are still breaking.
+  except:
+    - FILE_NO_DELETE
