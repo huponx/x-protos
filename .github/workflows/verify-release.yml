@@ -164,5 +164,13 @@ jobs:
             echo "| Previous | \`${{ steps.bump.outputs.previous }}\` |"
             echo "| Bump | ${{ github.event_name == 'workflow_dispatch' && inputs.bump || 'patch' }} |"
             echo "| URL | ${{ steps.bump.outputs.release_url || '—' }} |"
-            echo "| Next | notify-protogen on tag push |"
+            echo "| Next | notify job (workflow_call) |"
           } >> "${GITHUB_STEP_SUMMARY}"
+
+  notify:
+    needs: release
+    if: needs.release.outputs.tag != ''
+    uses: ./.github/workflows/notify-protogen.yml
+    with:
+      proto_ref: ${{ needs.release.outputs.tag }}
+    secrets: inherit

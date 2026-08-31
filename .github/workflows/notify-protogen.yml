@@ -1,15 +1,19 @@
 name: Notify protogen
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
-  workflow_dispatch:
+  workflow_call:
     inputs:
       proto_ref:
         description: Tag or SHA of this proto repo to generate
-        required: false
-        default: ""
+        required: true
+        type: string
+    outputs:
+      generate_conclusion:
+        description: Conclusion of protogen generate.yml
+        value: ${{ jobs.notify.outputs.generate_conclusion }}
+      generate_url:
+        description: URL of the protogen generate run
+        value: ${{ jobs.notify.outputs.generate_url }}
 
 permissions:
   contents: read
@@ -17,17 +21,20 @@ permissions:
 jobs:
   notify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     outputs:
       proto_ref: ${{ steps.meta.outputs.proto_ref }}
       proto_repo: ${{ github.repository }}
       target_repo: ${{ steps.meta.outputs.target_repo }}
       dispatched: ${{ steps.dispatch.outputs.dispatched }}
+      generate_conclusion: ${{ steps.wait.outputs.conclusion }}
+      generate_url: ${{ steps.wait.outputs.url }}
     steps:
       - name: Resolve refs
         id: meta
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.proto_ref }}" ]; then
+          if [ -n "${{ inputs.proto_ref }}" ]; then
             ref="${{ inputs.proto_ref }}"
           else
             ref="${GITHUB_REF_NAME}"
@@ -53,6 +60,50 @@ jobs:
             -F "client_payload[proto_repo]=${GITHUB_REPOSITORY}" \
             -F "client_payload[proto_sha]=${GITHUB_SHA}"
           echo "dispatched=true" >> "${GITHUB_OUTPUT}"
+      - name: Wait for protogen generate
+        id: wait
+        env:
+          GH_TOKEN: ${{ secrets.PROTOGEN_DISPATCH_TOKEN }}
+          TARGET: ${{ steps.meta.outputs.target_repo }}
+          PROTO_REF: ${{ steps.meta.outputs.proto_ref }}
+        run: |
+          set -euo pipefail
+          echo "conclusion=" >> "${GITHUB_OUTPUT}"
+          echo "url=" >> "${GITHUB_OUTPUT}"
+          echo "run_id=" >> "${GITHUB_OUTPUT}"
+
+          run_id=""
+          for _ in $(seq 1 24); do
+            run_id="$(
+              gh run list --repo "${TARGET}" --workflow generate.yml --limit 20 \
+                --json databaseId,displayTitle,event \
+                --jq '[.[] | select(.event == "repository_dispatch") | select(.displayTitle | contains(env.PROTO_REF))][0].databaseId // empty'
+            )"
+            if [ -n "${run_id}" ]; then
+              break
+            fi
+            sleep 5
+          done
+
+          if [ -z "${run_id}" ]; then
+            echo "No protogen generate run found for ${PROTO_REF} (need Actions: Read on PROTOGEN_DISPATCH_TOKEN)" >&2
+            exit 1
+          fi
+
+          echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
+          url="$(gh run view "${run_id}" --repo "${TARGET}" --json url --jq .url)"
+          echo "url=${url}" >> "${GITHUB_OUTPUT}"
+          echo "Watching ${url}"
+
+          set +e
+          gh run watch "${run_id}" --repo "${TARGET}" --exit-status
+          watch_rc=$?
+          set -e
+
+          conclusion="$(gh run view "${run_id}" --repo "${TARGET}" --json conclusion --jq .conclusion)"
+          echo "conclusion=${conclusion}" >> "${GITHUB_OUTPUT}"
+          echo "Protogen generate: ${conclusion}"
+          exit "${watch_rc}"
       - name: Summary
         if: always()
         run: |
@@ -67,5 +118,7 @@ jobs:
             echo "| proto SHA | \`${GITHUB_SHA:0:7}\` |"
             echo "| Target | \`${{ steps.meta.outputs.target_repo }}\` |"
             echo "| Dispatched | ${{ steps.dispatch.outputs.dispatched || 'false' }} |"
+            echo "| Generate | ${{ steps.wait.outputs.conclusion || '—' }} |"
+            echo "| Generate run | ${{ steps.wait.outputs.url || '—' }} |"
             echo "| Event | ${{ github.event_name }} |"
           } >> "${GITHUB_STEP_SUMMARY}"
