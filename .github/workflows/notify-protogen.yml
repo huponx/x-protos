@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       proto_ref: ${{ steps.meta.outputs.proto_ref }}
+      proto_repo: ${{ github.repository }}
       target_repo: ${{ steps.meta.outputs.target_repo }}
       dispatched: ${{ steps.dispatch.outputs.dispatched }}
     steps:
@@ -49,6 +50,7 @@ jobs:
           gh api "repos/${{ steps.meta.outputs.target_repo }}/dispatches" \
             -f event_type=proto_release \
             -F "client_payload[proto_ref]=${{ steps.meta.outputs.proto_ref }}" \
+            -F "client_payload[proto_repo]=${GITHUB_REPOSITORY}" \
             -F "client_payload[proto_sha]=${GITHUB_SHA}"
           echo "dispatched=true" >> "${GITHUB_OUTPUT}"
       - name: Summary
@@ -61,6 +63,7 @@ jobs:
             echo "|---|---|"
             echo "| Result | ${{ job.status }} |"
             echo "| proto_ref | \`${{ steps.meta.outputs.proto_ref }}\` |"
+            echo "| proto_repo | \`${GITHUB_REPOSITORY}\` |"
             echo "| proto SHA | \`${GITHUB_SHA:0:7}\` |"
             echo "| Target | \`${{ steps.meta.outputs.target_repo }}\` |"
             echo "| Dispatched | ${{ steps.dispatch.outputs.dispatched || 'false' }} |"
