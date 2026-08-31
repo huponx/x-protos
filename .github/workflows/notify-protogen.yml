@@ -14,6 +14,18 @@ on:
       generate_url:
         description: URL of the protogen generate run
         value: ${{ jobs.notify.outputs.generate_url }}
+      generate_release_url:
+        description: Protogen GitHub Release URL
+        value: ${{ jobs.notify.outputs.generate_release_url }}
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      proto_ref:
+        description: Tag or SHA of this proto repo to generate
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -29,6 +41,7 @@ jobs:
       dispatched: ${{ steps.dispatch.outputs.dispatched }}
       generate_conclusion: ${{ steps.wait.outputs.conclusion }}
       generate_url: ${{ steps.wait.outputs.url }}
+      generate_release_url: ${{ steps.wait.outputs.release_url }}
     steps:
       - name: Resolve refs
         id: meta
@@ -71,6 +84,7 @@ jobs:
           echo "conclusion=" >> "${GITHUB_OUTPUT}"
           echo "url=" >> "${GITHUB_OUTPUT}"
           echo "run_id=" >> "${GITHUB_OUTPUT}"
+          echo "release_url=" >> "${GITHUB_OUTPUT}"
 
           run_id=""
           for _ in $(seq 1 24); do
@@ -102,15 +116,19 @@ jobs:
 
           conclusion="$(gh run view "${run_id}" --repo "${TARGET}" --json conclusion --jq .conclusion)"
           echo "conclusion=${conclusion}" >> "${GITHUB_OUTPUT}"
+          release_url="$(gh release view "${PROTO_REF}" --repo "${TARGET}" --json url --jq .url || true)"
+          echo "release_url=${release_url}" >> "${GITHUB_OUTPUT}"
           echo "Protogen generate: ${conclusion}"
+          echo "Protogen release: ${release_url:-none}"
           exit "${watch_rc}"
+
       - name: Summary
         if: always()
         run: |
           {
             echo "## Notify protogen"
             echo ""
-            echo "| | |"
+            echo "| Field | Value |"
             echo "|---|---|"
             echo "| Result | ${{ job.status }} |"
             echo "| proto_ref | \`${{ steps.meta.outputs.proto_ref }}\` |"
@@ -120,5 +138,6 @@ jobs:
             echo "| Dispatched | ${{ steps.dispatch.outputs.dispatched || 'false' }} |"
             echo "| Generate | ${{ steps.wait.outputs.conclusion || '—' }} |"
             echo "| Generate run | ${{ steps.wait.outputs.url || '—' }} |"
+            echo "| Release | ${{ steps.wait.outputs.release_url || '—' }} |"
             echo "| Event | ${{ github.event_name }} |"
           } >> "${GITHUB_STEP_SUMMARY}"

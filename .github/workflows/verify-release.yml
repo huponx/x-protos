@@ -157,7 +157,7 @@ jobs:
           {
             echo "## Proto release"
             echo ""
-            echo "| | |"
+            echo "| Field | Value |"
             echo "|---|---|"
             echo "| Result | ${{ job.status }} |"
             echo "| Tag | \`${{ steps.bump.outputs.tag }}\` |"
