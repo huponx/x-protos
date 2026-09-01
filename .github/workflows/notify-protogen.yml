@@ -20,6 +20,10 @@ on:
   push:
     tags:
       - "v*.*.*"
+    paths-ignore:
+      - '**/README.md'
+      - '**/notify-protogen.yml'
+      - '**/verify-release.yml'
   workflow_dispatch:
     inputs:
       proto_ref:
