@@ -17,7 +17,6 @@ enum Channel {
 message Recipient {
   Channel channel = 10;
   string address = 20;
-  reserved 30 to 90;
 }
 
 message SendNotificationRequest {
@@ -26,7 +25,6 @@ message SendNotificationRequest {
   string template_id = 30;
   map<string, string> template_data = 40;
   repeated Recipient recipients = 50;
-  reserved 60 to 90;
 }
 
 message SendNotificationResponse {
