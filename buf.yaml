@@ -9,3 +9,4 @@ breaking:
   # removals inside a remaining file are still breaking.
   except:
     - FILE_NO_DELETE
+    - RESERVED_MESSAGE_NO_DELETE
