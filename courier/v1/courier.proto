@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package courier.v1;
+
+option go_package = "github.com/huponx/x-protogen/courier/v1;courierv1";
+
+service CourierService {
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+}
+
+enum Channel {
+  CHANNEL_UNSPECIFIED = 0;
+  CHANNEL_EMAIL = 10;
+  CHANNEL_TELEGRAM = 20;
+}
+
+message Recipient {
+  Channel channel = 10;
+  string address = 20;
+  reserved 30 to 90;
+}
+
+message SendNotificationRequest {
+  string idempotency_key = 10;
+  string locale = 20;
+  string template_id = 30;
+  map<string, string> template_data = 40;
+  repeated Recipient recipients = 50;
+  reserved 60 to 90;
+}
+
+message SendNotificationResponse {
+  string notification_id = 10;
+  int32 queued = 20;
+}
